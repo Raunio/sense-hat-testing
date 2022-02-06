@@ -1,27 +1,36 @@
 import asyncio
+from cProfile import label
 from sense_hat import SenseHat
+from event import EventType
 from sensor_data import SensorData
-from sensor_reader import SensorReader
-from input_reader import InputReader
-from conditional import Conditional
+from sensor_data_producer import SensorDataProducer
+from stick_input_producer import StickInputProducer
+from constants import Constants
 
 class Main:
     senseHat = SenseHat()
 
-    async def printConsumer(self, queue):
+    async def inputEventConsumer(self, queue):
         while True:
-            msg = await queue.get()
-            print(msg)
+            event = await queue.get()
+            if(event.type == EventType.INPUT):
+                print(event.msg())
+            if(event.type == EventType.SENSOR_DATA and event.label == Constants.LABEL_TEMPERATURE):
+                if(event.data > 25):
+                    print("Its getting hot in here! Temp is ", event.data)
+
             queue.task_done()
 
     async def main(self):
         try:
             queue = asyncio.Queue()
-            inputReader = InputReader(self.senseHat)
-            pressureReader = SensorReader(self.senseHat.get_pressure)
-            tempReader = SensorReader(self.senseHat.get_temperature)
-            producers = [ asyncio.create_task(pressureReader.read(queue)), asyncio.create_task(inputReader.read(queue)), asyncio.create_task(tempReader.read(queue)) ]
-            consumers =  [ asyncio.create_task(self.printConsumer(queue)) ]
+
+            inputProducer = StickInputProducer(self.senseHat)
+            pressureProducer = SensorDataProducer(self.senseHat.get_pressure, Constants.LABEL_PRESSURE)
+            tempProducer = SensorDataProducer(self.senseHat.get_temperature, Constants.LABEL_TEMPERATURE)
+
+            producers = [ asyncio.create_task(pressureProducer.read(queue)), asyncio.create_task(inputProducer.read(queue)), asyncio.create_task(tempProducer.read(queue)) ]
+            consumers =  [ asyncio.create_task(self.inputEventConsumer(queue)) ]
 
             # with both producers and consumers running, wait for
             # the producers to finish
@@ -38,8 +47,6 @@ class Main:
             print(e)
             pass
         finally:
-            print("Closing Loop")
-            self.loop.close()
             self.senseHat.clear()
             
 
