@@ -4,7 +4,6 @@ class SensorData:
     def __init__(self, name):
         self.name = name
     def set(self, data):
-        print(data)
         self.data = data
     def toString(self):
-        return self.name + ": " + str(self.data)
+        return self.name[0:1] + ": " + str(self.data)[0:4]
