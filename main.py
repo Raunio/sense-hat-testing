@@ -1,42 +1,47 @@
 import asyncio
 from sense_hat import SenseHat
-from globals import Globals
 from sensor_data import SensorData
 from sensor_reader import SensorReader
-from time import sleep
-from repeatable_task import RepeatableTask
 from input_reader import InputReader
+from conditional import Conditional
 
-async def show(sense, selectedData):
-    sense.show_letter(selectedData.name[0])
-
-loop = asyncio.get_event_loop()
-try:
+class Main:
     senseHat = SenseHat()
-    pressure = SensorData("Pressure")
-    temp = SensorData("Temperature")
 
-    readers = [ SensorReader(senseHat.get_pressure, pressure), SensorReader(senseHat.get_temperature, temp) ]
+    async def printConsumer(self, queue):
+        while True:
+            msg = await queue.get()
+            print(msg)
+            queue.task_done()
 
-    selectedData = temp
-    
-    for reader in readers:
-        repeatable = RepeatableTask(reader.read, True)
-        loop.create_task(repeatable.update())
+    async def main(self):
+        try:
+            queue = asyncio.Queue()
+            inputReader = InputReader(self.senseHat)
+            pressureReader = SensorReader(self.senseHat.get_pressure)
+            tempReader = SensorReader(self.senseHat.get_temperature)
+            producers = [ asyncio.create_task(pressureReader.read(queue)), asyncio.create_task(inputReader.read(queue)), asyncio.create_task(tempReader.read(queue)) ]
+            consumers =  [ asyncio.create_task(self.printConsumer(queue)) ]
 
-    #loop.create_task(show(senseHat, selectedData))
-    inputReader = InputReader(senseHat)
-    loop.create_task(asyncio.to_thread(inputReader.read))
-    #await inputTask
+            # with both producers and consumers running, wait for
+            # the producers to finish
+            await asyncio.gather(*producers)
+            print('---- done producing')
+        
+            # wait for the remaining tasks to be processed
+            await queue.join()
+        
+            # cancel the consumers, which are now idle
+            for c in consumers:
+                c.cancel()
+        except Exception as e:
+            print(e)
+            pass
+        finally:
+            print("Closing Loop")
+            self.loop.close()
+            self.senseHat.clear()
+            
 
-    loop.run_forever()
-except Exception as e:
-    print(e)
-    pass
-finally:
-    print("Closing Loop")
-    loop.close()
-    senseHat.clear()
-
-def next_reader(current, readers):
-    length = len(readers)
+main = Main()
+asyncio.run(main.main())

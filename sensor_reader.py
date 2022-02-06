@@ -1,7 +1,9 @@
+import asyncio
+from globals import Globals
 class SensorReader:
-    def __init__(self, reader, out):
+    def __init__(self, reader):
         self.reader = reader
-        self.out = out
-    def read(self):
-        self.out.set(self.reader())
-        print(self.out.data)
+    async def read(self, queue):
+        while True:
+            await(queue.put(self.reader()))
+            await asyncio.sleep(Globals.UPDATE_INTERVAL)
