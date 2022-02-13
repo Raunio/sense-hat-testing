@@ -1,54 +1,57 @@
 import asyncio
 from cProfile import label
+import sys
+import traceback
 from sense_hat import SenseHat
-from event import EventType
-from sensor_data import SensorData
+from mqtt_connection_provider import MQTTConnectionProvider
 from sensor_data_producer import SensorDataProducer
 from stick_input_producer import StickInputProducer
 from constants import Constants
 
-class Main:
+async def main():
     senseHat = SenseHat()
+    mqttConnectionProvider = MQTTConnectionProvider()
 
-    async def inputEventConsumer(self, queue):
-        while True:
-            event = await queue.get()
-            if(event.type == EventType.INPUT):
-                print(event.msg())
-            if(event.type == EventType.SENSOR_DATA and event.label == Constants.LABEL_TEMPERATURE):
-                if(event.data > 25):
-                    print("Its getting hot in here! Temp is ", event.data)
+    try:
+        inputProducer = StickInputProducer(senseHat)
 
-            queue.task_done()
+        pressureProducer = SensorDataProducer(mqttConnectionProvider)
+        pressureProducer.reader(senseHat.get_pressure)
+        pressureProducer.tag(Constants.TAG_PRESSURE)
+        pressureProducer.unit(Constants.UNIT_PRESSURE)
 
-    async def main(self):
-        try:
-            queue = asyncio.Queue()
+        tempProducer = SensorDataProducer(mqttConnectionProvider)
+        tempProducer.reader(senseHat.get_temperature)
+        tempProducer.tag(Constants.TAG_TEMPERATURE)
+        tempProducer.unit(Constants.UNIT_TEMPERATURE)
 
-            inputProducer = StickInputProducer(self.senseHat)
-            pressureProducer = SensorDataProducer(self.senseHat.get_pressure, Constants.LABEL_PRESSURE)
-            tempProducer = SensorDataProducer(self.senseHat.get_temperature, Constants.LABEL_TEMPERATURE)
+        humidityProducer = SensorDataProducer(mqttConnectionProvider)
+        humidityProducer.reader(senseHat.get_humidity)
+        humidityProducer.tag(Constants.TAG_HUMIDITY)
+        humidityProducer.unit(Constants.UNIT_HUMIDITY)
 
-            producers = [ asyncio.create_task(pressureProducer.read(queue)), asyncio.create_task(inputProducer.read(queue)), asyncio.create_task(tempProducer.read(queue)) ]
-            consumers =  [ asyncio.create_task(self.inputEventConsumer(queue)) ]
-
-            # with both producers and consumers running, wait for
-            # the producers to finish
-            await asyncio.gather(*producers)
-            print('---- done producing')
+        compassProducer = SensorDataProducer(mqttConnectionProvider)
+        compassProducer.reader(senseHat.get_compass)
+        compassProducer.tag(Constants.TAG_COMPASS)
+        compassProducer.unit(Constants.UNIT_COMPASS)
         
-            # wait for the remaining tasks to be processed
-            await queue.join()
-        
-            # cancel the consumers, which are now idle
-            for c in consumers:
-                c.cancel()
-        except Exception as e:
-            print(e)
-            pass
-        finally:
-            self.senseHat.clear()
+
+        producers = [ 
+            pressureProducer.create_task(), 
+            inputProducer.create_task(), 
+            tempProducer.create_task(), 
+            humidityProducer.create_task(),
+            compassProducer.create_task() ]
+
+        await asyncio.gather(*producers)
+
+    except Exception as e:
+        print(e)
+        traceback.print_exception(*sys.exc_info())
+        pass
+    finally:
+        senseHat.clear()
+        mqttConnectionProvider.cleanup()
             
-
-main = Main()
-asyncio.run(main.main())
+if __name__ == "__main__":
+    asyncio.run(main())

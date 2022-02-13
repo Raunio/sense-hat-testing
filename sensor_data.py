@@ -1,9 +1,17 @@
+import json
+from unicodedata import name
+
+
 class SensorData:
-    name = ""
-    data = 0
-    def __init__(self, name):
+    def name(self, name):
         self.name = name
-    def set(self, data):
+        return self
+    def data(self, data):
         self.data = data
-    def toString(self):
-        return self.name[0:1] + ": " + str(self.data)[0:4]
+        return self
+    def unit(self, unit):
+        self.unit = unit
+        return self
+        
+    def toJSON(self):
+        return json.dumps({ "tag": self.name, "value": self.data, "unit": self.unit })
