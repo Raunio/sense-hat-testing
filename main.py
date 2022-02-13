@@ -34,14 +34,19 @@ async def main():
         compassProducer.reader(senseHat.get_compass)
         compassProducer.tag(Constants.TAG_COMPASS)
         compassProducer.unit(Constants.UNIT_COMPASS)
-        
+
+        orientationProducer = SensorDataProducer(mqttConnectionProvider)
+        orientationProducer.reader(senseHat.get_orientation)
+        orientationProducer.tag(Constants.TAG_ORIENTATION)
+        orientationProducer.unit("dunno")
 
         producers = [ 
-            pressureProducer.create_task(), 
-            inputProducer.create_task(), 
-            tempProducer.create_task(), 
-            humidityProducer.create_task(),
-            compassProducer.create_task() ]
+            #pressureProducer.create_task(), 
+            #inputProducer.create_task(), 
+            #tempProducer.create_task(), 
+            #humidityProducer.create_task(),
+            #compassProducer.create_task() 
+            orientationProducer.create_task() ]
 
         await asyncio.gather(*producers)
 
